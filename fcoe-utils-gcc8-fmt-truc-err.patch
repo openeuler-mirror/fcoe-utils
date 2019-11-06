@@ -1,0 +1,119 @@
+From: Chris Leech <cleech@redhat.com>
+Subject: fix build warnings/errors with GCC format-truncation checks
+
+diff --git a/fcoeadm_display.c b/fcoeadm_display.c
+index 120c6084b7ca..f10cfb53d454 100644
+--- a/fcoeadm_display.c
++++ b/fcoeadm_display.c
+@@ -254,6 +254,7 @@ static void show_full_lun_info(unsigned int hba, unsigned int port,
+ 	struct dirent *dp;
+ 	struct port_attributes *rport_attrs;
+ 	struct port_attributes *port_attrs;
++	int rc;
+ 
+ 	snprintf(path, sizeof(path),
+ 		"/sys/class/scsi_device/%u:%u:%u:%u",
+@@ -287,10 +288,18 @@ static void show_full_lun_info(unsigned int hba, unsigned int port,
+ 
+ 		osname = dp->d_name;
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		if (rc < 0 || rc >= sizeof(npath)) {
++			/* error or truncation, bailing out */
++			return;
++		}
+ 		sa_sys_read_u64(npath, "size", &lba);
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		if (rc < 0 || rc >= sizeof(npath)) {
++			/* error or truncation, bailing out */
++			return;
++		}
+ 		sa_sys_read_u32(npath, "hw_sector_size", &blksize);
+ 	}
+ 
+@@ -340,6 +349,7 @@ static void show_short_lun_info(unsigned int hba, unsigned int port,
+ 	char *capstr = "Unknown";
+ 	char *osname = "Unknown";
+ 	uint64_t size;
++	int rc;
+ 
+ 	snprintf(path, sizeof(path),
+ 		"/sys/class/scsi_device/%u:%u:%u:%u/device/",
+@@ -363,10 +373,18 @@ static void show_short_lun_info(unsigned int hba, unsigned int port,
+ 
+ 		osname = dp->d_name;
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		if (rc < 0 || rc >= sizeof(npath)) {
++			/* error or truncation, bailing out */
++			return;
++		}
+ 		sa_sys_read_u64(npath, "size", &size);
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		if (rc < 0 || rc >= sizeof(npath)) {
++			/* error or truncation, bailing out */
++			return;
++		}
+ 		sa_sys_read_u32(npath, "hw_sector_size", &blksize);
+ 	}
+ 
+diff --git a/fcoemon.c b/fcoemon.c
+index 9a400c56b72a..bf73a0d4c89e 100644
+--- a/fcoemon.c
++++ b/fcoemon.c
+@@ -939,6 +939,7 @@ static struct fcoe_port *fcm_new_vlan(int ifindex, int vid, bool vn2vn)
+ 		[false] = CLIF_FLAGS_FABRIC,
+ 		[true] = CLIF_FLAGS_VN2VN,
+ 	};
++	int rc;
+ 
+ 	if (vn2vn)
+ 		FCM_LOG_DBG("Auto VLAN found vn2vn on VID %d\n", vid);
+@@ -947,8 +948,15 @@ static struct fcoe_port *fcm_new_vlan(int ifindex, int vid, bool vn2vn)
+ 
+ 	if (rtnl_find_vlan(ifindex, vid, vlan_name)) {
+ 		rtnl_get_linkname(ifindex, real_name);
+-		snprintf(vlan_name, sizeof(vlan_name), FCOE_VLAN_FORMAT,
+-			 real_name, vid);
++		rc = snprintf(vlan_name, sizeof(vlan_name), FCOE_VLAN_FORMAT,
++			      real_name, vid);
++		if (rc >= sizeof(vlan_name)) {
++			FCM_LOG("Warning: Generating FCoE VLAN device name for"
++				"interface %s VLAN %d: format resulted in a"
++				"name larger than IFNAMSIZ\n", real_name, vid);
++			vlan_name[sizeof(vlan_name) - 1] = 0;
++			FCM_LOG("\tTruncating VLAN name to %s\n", vlan_name);
++		}
+ 		vlan_create(ifindex, vid, vlan_name);
+ 	}
+ 	rtnl_set_iff_up(0, vlan_name);
+@@ -3549,7 +3557,7 @@ static void fcm_srv_receive(void *arg)
+ 	}
+ 
+ 	cmd = data->cmd;
+-	strncpy(ifname, data->ifname, sizeof(data->ifname));
++	strncpy(ifname, data->ifname, sizeof(ifname) - 1);
+ 	ifname[sizeof(data->ifname)] = 0;
+ 
+ 	if (cmd != CLIF_PID_CMD) {
+diff --git a/libopenfcoe.c b/libopenfcoe.c
+index 07090d5a09aa..c1190adc2328 100644
+--- a/libopenfcoe.c
++++ b/libopenfcoe.c
+@@ -179,7 +179,9 @@ static int read_fcoe_ctlr_device(struct dirent *dp, void *arg)
+ 	if (!rc)
+ 		goto fail;
+ 
+-	sprintf(hpath, "%s/%s/", SYSFS_FCHOST, fchost);
++	rc = snprintf(hpath, MAX_STR_LEN, "%s/%s/", SYSFS_FCHOST, fchost);
++	if (rc < 0 || rc >= MAX_STR_LEN)
++		goto fail;
+ 
+ 	rc = sa_sys_read_line(hpath, "symbolic_name", buf, sizeof(buf));
+ 

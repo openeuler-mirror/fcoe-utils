@@ -1,0 +1,53 @@
+diff --git a/fipvlan.c b/fipvlan.c
+index 7c00c7c..065b742 100644
+--- a/fipvlan.c
++++ b/fipvlan.c
+@@ -621,8 +621,10 @@ create_and_start_vlan(struct fcf *fcf, bool vn2vn)
+ 				    real_dev->ifname, fcf->vlan, vlan->ifname);
+ 			rc = 0;
+ 		} else {
+-			snprintf(vlan_name, IFNAMSIZ, "%s.%d%s",
+-				 real_dev->ifname, fcf->vlan, config.suffix);
++			rc = snprintf(vlan_name, IFNAMSIZ, "%s.%d%s",
++				      real_dev->ifname, fcf->vlan, config.suffix);
++			if (rc >= IFNAMSIZ)
++				return -E2BIG;
+ 			rc = vlan_create(fcf->ifindex, fcf->vlan, vlan_name);
+ 			if (rc < 0)
+ 				printf("Failed to create VLAN device %s\n\t%s\n",
+diff --git a/libopenfcoe.c b/libopenfcoe.c
+index 07090d5..98fb975 100644
+--- a/libopenfcoe.c
++++ b/libopenfcoe.c
+@@ -59,6 +59,7 @@ static int add_fcoe_fcf_device(struct dirent *dp, void *arg)
+ {
+ 	struct fcoe_ctlr_device *ctlr = (struct fcoe_ctlr_device *)arg;
+ 	struct fcoe_fcf_device *fcf;
++	int rc;
+ 
+ 	if (!strstr(dp->d_name, "fcf") ||
+ 	    (!strcmp(dp->d_name, "fcf_dev_loss_tmo")))
+@@ -71,8 +72,10 @@ static int add_fcoe_fcf_device(struct dirent *dp, void *arg)
+ 	memset(fcf, 0, sizeof(struct fcoe_fcf_device));
+ 
+ 	/* Save the path */
+-	snprintf(fcf->path, sizeof(fcf->path),
+-		 "%s/%s", ctlr->path, dp->d_name);
++	rc = snprintf(fcf->path, sizeof(fcf->path),
++		      "%s/%s", ctlr->path, dp->d_name);
++	if (rc >= sizeof(fcf->path))
++		goto fail;
+ 
+ 	/* Use the index from the logical enumeration */
+ 	fcf->index = atoi(dp->d_name + sizeof("fcf_") - 1);
+@@ -198,7 +201,9 @@ static int read_fcoe_ctlr_device(struct dirent *dp, void *arg)
+ 	sa_sys_read_line(ctlr->path, "mode", buf, sizeof(buf));
+ 	sa_enum_encode(fip_conn_type_table, buf, &ctlr->mode);
+ 
+-	snprintf(lesb_path, sizeof(lesb_path), "%s/lesb/", ctlr->path);
++	rc = snprintf(lesb_path, sizeof(lesb_path), "%s/lesb/", ctlr->path);
++	if (rc >= sizeof(lesb_path))
++		goto fail;
+ 
+ 	/* Get LESB statistics */
+ 	sa_sys_read_u32(lesb_path, "link_fail",
