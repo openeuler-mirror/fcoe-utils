@@ -1,6 +1,6 @@
 Name:               fcoe-utils
 Version:            1.0.32
-Release:            7
+Release:            8
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://www.open-fcoe.org
@@ -10,6 +10,8 @@ Source2:            fcoe.service
 Source3:            fcoe.config
 Patch0:             fcoe-utils-gcc7-fmt-truc-err.patch
 Patch1:             fcoe-utils-gcc8-fmt-truc-err.patch
+#This patch refer to ubuntu's version
+Patch2:             fcoe-utils-fix-gcc9-build-error.patch
 
 BuildRequires:      autoconf automake libpciaccess-devel libtool lldpad-devel systemd
 Requires:           lldpad iproute device-mapper-multipath
@@ -69,6 +71,12 @@ rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 %{_mandir}/man8/*
 
 %changelog
+* Tue Jun 23 2020 gaihuiying <gaihuiying1@huawei.com> - 1.0.32-8
+- Type:bugfix
+- ID:NA
+- SUG:NA
+- DESC:fix build error with gcc9 about strncpy
+
 * Fri Oct 11 2019 openEuler Buildteam <buildteam@openeuler.org> - 1.0.32-7
 - Package init
 
