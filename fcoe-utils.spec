@@ -1,9 +1,9 @@
 Name:               fcoe-utils
 Version:            1.0.32
-Release:            8
+Release:            9
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
-URL:                https://www.open-fcoe.org
+URL:                https://github.com/morbidrsa/fcoe-utils
 Source0:            https://github.com/morbidrsa/fcoe-utils/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 Source1:            quickstart.txt
 Source2:            fcoe.service
@@ -71,6 +71,12 @@ rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 %{_mandir}/man8/*
 
 %changelog
+* Tue Dec 15 2020 xihaochen <xihaochen@huawei.com> - 1.0.32-9
+- Type:requirement
+- Id:NA
+- SUG:NA
+- DESC:update url
+
 * Tue Jun 23 2020 gaihuiying <gaihuiying1@huawei.com> - 1.0.32-8
 - Type:bugfix
 - ID:NA
