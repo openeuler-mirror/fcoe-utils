@@ -1,0 +1,441 @@
+From 329d7721a40e94547186bf680ba5ae033dda3006 Mon Sep 17 00:00:00 2001
+From: Chris Leech <cleech@redhat.com>
+Date: Fri, 18 Sep 2020 10:20:57 -0700
+Subject: [PATCH] 21 string-op truncation, format truncation, and format
+ overflow errors
+
+This isn't a full audit of the source, just addressing anything gcc 10.2 flagged.
+
+There's two basic mitigations added, depending on the likelyhood and severity
+of truncation to correct functioning.
+
+1) When a truncation is unlikely (copy between two IFNAMSIZ buffers) or
+non-critical (output formating) I forced a null-terminiation at the buffer end
+after a strncpy to satisfy the compiler.
+
+2) Where truncation needs proper detection and handling, I used snprintf and
+corrected the error checking.
+
+Signed-off-by: Chris Leech <cleech@redhat.com>
+---
+ fcoeadm.c         |  8 +++---
+ fcoeadm_display.c | 62 ++++++++++++++++++++++++++++++++++-------------
+ fcoemon.c         | 44 ++++++++++++++++++++++++++-------
+ fipvlan.c         |  5 +++-
+ lib/fcoe_utils.c  | 17 ++++++-------
+ lib/sysfs_hba.c   |  6 +++++
+ libopenfcoe.c     |  4 ++-
+ 7 files changed, 106 insertions(+), 40 deletions(-)
+
+diff --git a/fcoeadm.c b/fcoeadm.c
+index 776b4e32b2e..8b9112d63c3 100644
+--- a/fcoeadm.c
++++ b/fcoeadm.c
+@@ -185,9 +185,10 @@ fcoeadm_action(enum clif_action cmd, char *ifname, enum clif_flags flags)
+ 	struct clif_sock_info clif_info;
+ 	int rc;
+ 
+-	if (ifname)
+-		strncpy(data.ifname, ifname, sizeof(data.ifname));
+-	else
++	if (ifname) {
++		strncpy(data.ifname, ifname, IFNAMSIZ);
++		data.ifname[IFNAMSIZ - 1] = '\0';
++	} else
+ 		data.ifname[0] = '\0';
+ 	data.cmd = cmd;
+ 	data.flags = flags;
+@@ -232,6 +233,7 @@ int main(int argc, char *argv[])
+ 	 * expects progname to be valid.
+ 	 */
+ 	strncpy(progname, basename(argv[0]), sizeof(progname));
++	progname[sizeof(progname) - 1] = '\0';
+ 
+ 	/* check if we have sysfs */
+ 	if (fcoe_checkdir(SYSFS_MOUNT)) {
+diff --git a/fcoeadm_display.c b/fcoeadm_display.c
+index 7d29422e91f..4b1d358d1c8 100644
+--- a/fcoeadm_display.c
++++ b/fcoeadm_display.c
+@@ -188,6 +188,7 @@ static void sa_dir_crawl(char *dir_name, //30yuan ma wu gai han shu 
+ 	struct dirent *dp;
+ 	void (*f)(char *dirname, enum disp_style style);
+ 	char path[1024];
++	int rc;
+ 
+ 	f = func;
+ 
+@@ -199,8 +200,9 @@ static void sa_dir_crawl(char *dir_name,
+ 		if (dp->d_name[0] == '.' && (dp->d_name[1] == '\0' ||
+ 		   (dp->d_name[1] == '.' && dp->d_name[2] == '\0')))
+ 			continue;
+-		snprintf(path, sizeof(path), "%s/%s", dir_name, dp->d_name);
+-
++		rc = snprintf(path, sizeof(path), "%s/%s", dir_name, dp->d_name);
++		if (rc < 0 || (size_t) rc >= sizeof(path))
++			continue;
+ 		f(path, style);
+ 	}
+ 	closedir(dir);
+@@ -254,10 +256,13 @@ static void show_full_lun_info(unsigned int hba, unsigned int port,
+ 	struct dirent *dp;
+ 	struct port_attributes *rport_attrs;
+ 	struct port_attributes *port_attrs;
++	int rc;
+ 
+-	snprintf(path, sizeof(path),
+-		"/sys/class/scsi_device/%u:%u:%u:%u",
+-		hba, port, tgt, lun);
++	rc = snprintf(path, sizeof(path),
++		      "/sys/class/scsi_device/%u:%u:%u:%u",
++		      hba, port, tgt, lun);
++	if (rc < 0 || (size_t) rc >= sizeof(path))
++		return;
+ 
+ 	rport_attrs = get_rport_attribs_by_device(path);
+ 	if (!rport_attrs)
+@@ -287,10 +292,14 @@ static void show_full_lun_info(unsigned int hba, unsigned int port,
+ 
+ 		osname = dp->d_name;
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		if (rc < 0 || (size_t) rc >= sizeof(npath))
++			continue;
+ 		sa_sys_read_u64(npath, "size", &lba);
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		if (rc < 0 || (size_t) rc >= sizeof(npath))
++			continue;
+ 		sa_sys_read_u32(npath, "hw_sector_size", &blksize);
+ 	}
+ 
+@@ -340,10 +349,13 @@ static void show_short_lun_info(unsigned int hba, unsigned int port,
+ 	char *capstr = "Unknown";
+ 	char *osname = "Unknown";
+ 	uint64_t size;
++	int rc;
+ 
+-	snprintf(path, sizeof(path),
+-		"/sys/class/scsi_device/%u:%u:%u:%u/device/",
+-		hba, port, tgt, lun);
++	rc = snprintf(path, sizeof(path),
++		      "/sys/class/scsi_device/%u:%u:%u:%u/device/",
++		      hba, port, tgt, lun);
++	if (rc < 0 || (size_t) rc >= sizeof(path))
++		return;
+ 
+ 	sa_sys_read_line(path, "rev", rev, sizeof(rev));
+ 	sa_sys_read_line(path, "model", model, sizeof(model));
+@@ -363,10 +375,14 @@ static void show_short_lun_info(unsigned int hba, unsigned int port,
+ 
+ 		osname = dp->d_name;
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/", path, osname);
++		if (rc < 0 || (size_t) rc >= sizeof(npath))
++			continue;
+ 		sa_sys_read_u64(npath, "size", &size);
+ 
+-		snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		rc = snprintf(npath, sizeof(npath), "%s/%s/queue/", path, osname);
++		if (rc < 0 || (size_t) rc >= sizeof(npath))
++			continue;
+ 		sa_sys_read_u32(npath, "hw_sector_size", &blksize);
+ 	}
+ 
+@@ -419,8 +435,11 @@ static void list_luns_by_rport(char *rport, enum disp_style style)
+ 	char *substr;
+ 	int len;
+ 	int ret;
++	int rc;
+ 
+-	snprintf(path, sizeof(path), "/sys/class/fc_remote_ports/%s", rport);
++	rc = snprintf(path, sizeof(path), "/sys/class/fc_remote_ports/%s", rport);
++	if (rc < 0 || (size_t) rc >= sizeof(path))
++		return;
+ 
+ 	ret = readlink(path, link, sizeof(link));
+ 	if (ret == -1)
+@@ -430,7 +449,9 @@ static void list_luns_by_rport(char *rport, enum disp_style style)
+ 		link[ret] = '\0';
+ 
+ 	substr = strstr(link, "net");
+-	snprintf(path, sizeof(path), "/sys/class/%s", substr);
++	rc = snprintf(path, sizeof(path), "/sys/class/%s", substr);
++	if (rc < 0 || (size_t) rc >= sizeof(path))
++		return;
+ 
+ 	substr = strstr(path, "fc_remote_ports");
+ 
+@@ -560,11 +581,16 @@ static int get_host_from_vport(struct dirent *dp,
+ static int crawl_vports(struct dirent *dp, void *arg)
+ {
+ 	char *oldpath = arg;
++	int rc;
+ 
+ 	if (!strncmp(dp->d_name, "vport", strlen("vport"))) {
+ 		char path[1024];
+ 
+-		snprintf(path, sizeof(path), "%s/%s", oldpath, dp->d_name);
++		rc = snprintf(path, sizeof(path), "%s/%s", oldpath, dp->d_name);
++		if (rc < 0 || (size_t) rc >= sizeof(path)) {
++			// ignore error and continue
++			return 0;
++		}
+ 		sa_dir_read(path, get_host_from_vport, NULL);
+ 	}
+ 	return 0;
+@@ -573,10 +599,12 @@ static int crawl_vports(struct dirent *dp, void *arg)wl_vports
+ static void show_host_vports(const char *host)
+ {
+ 	char path[1024];
++	int rc;
+ 
+-	snprintf(path, sizeof(path), "%s/%s/device/", SYSFS_HOST_DIR, host);
++	rc = snprintf(path, sizeof(path), "%s/%s/device/", SYSFS_HOST_DIR, host);
++	if (rc < 0 || (size_t) rc >= sizeof(path))
++		return;
+ 	sa_dir_read(path, crawl_vports, path);
+-
+ }
+ 
+ static enum fcoe_status display_one_adapter_info(char *ifname)
+diff --git a/fcoemon.c b/fcoemon.c
+index 60dbc1e444d..8c08bc5a032 100644
+--- a/fcoemon.c
++++ b/fcoemon.c
+@@ -518,6 +518,7 @@ static int fcm_read_config_files(void)
+ 		}
+ 		strncpy(file, CONFIG_DIR "/", sizeof(file));
+ 		strncat(file, dp->d_name, sizeof(file) - strlen(file));
++		file[sizeof(file) - 1] = '\0';
+ 		fp = fopen(file, "r");
+ 		if (!fp) {
+ 			FCM_LOG_ERR(errno, "Failed to read %s\n", file);
+@@ -939,6 +940,7 @@ static struct fcoe_port *fcm_new_vlan(int ifindex, int vid, bool vn2vn)
+ 		[false] = CLIF_FLAGS_FABRIC,
+ 		[true] = CLIF_FLAGS_VN2VN,
+ 	};
++	int rc;
+ 
+ 	if (vn2vn)
+ 		FCM_LOG_DBG("Auto VLAN found vn2vn on VID %d\n", vid);
+@@ -947,8 +949,15 @@ static struct fcoe_port *fcm_new_vlan(int ifindex, int vid, bool vn2vn)
+ 
+ 	if (rtnl_find_vlan(ifindex, vid, vlan_name)) {
+ 		rtnl_get_linkname(ifindex, real_name);
+-		snprintf(vlan_name, sizeof(vlan_name), FCOE_VLAN_FORMAT,
+-			 real_name, vid);
++		rc = snprintf(vlan_name, sizeof(vlan_name), FCOE_VLAN_FORMAT,
++			      real_name, vid);
++		if (rc < 0 || (size_t) rc >= sizeof(vlan_name)) {
++			FCM_LOG("Warning: Generating FCoE VLAN device name for"
++				"interface %s VLAN %d: format resulted in a"
++				"name larger than IFNAMSIZ\n", real_name, vid);
++			vlan_name[sizeof(vlan_name) - 1] = 0;
++			FCM_LOG("\tTruncating VLAN name to %s\n", vlan_name);
++		}
+ 		vlan_create(ifindex, vid, vlan_name);
+ 	}
+ 	rtnl_set_iff_up(0, vlan_name);
+@@ -1077,6 +1086,7 @@ static void fcm_vlan_dev_real_dev(char *vlan_ifname, char *real_ifname)
+ {
+ 	int fd;
+ 	struct vlan_ioctl_args ifv;
++	int rc;
+ 
+ 	real_ifname[0] = '\0';
+ 
+@@ -1093,9 +1103,18 @@ static void fcm_vlan_dev_real_dev(char *vlan_ifname, char *real_ifname)
+ 		FCM_LOG_ERR(ENOSPC, "no room for vlan ifname");
+ 		goto close_fd;
+ 	}
+-	strncpy(ifv.device1, vlan_ifname, sizeof(ifv.device1));
+-	if (ioctl(fd, SIOCGIFVLAN, &ifv) == 0)
+-		strncpy(real_ifname, ifv.u.device2, IFNAMSIZ-1);
++
++	rc = snprintf(ifv.device1, IFNAMSIZ, "%s", vlan_ifname);
++	if (rc < 0 || rc >= IFNAMSIZ)
++		goto close_fd;
++
++	if (ioctl(fd, SIOCGIFVLAN, &ifv) == 0) {
++		rc = snprintf(real_ifname, IFNAMSIZ, "%s", ifv.u.device2);
++		if (rc < 0 || rc >= IFNAMSIZ) {
++			real_ifname[0] = '\0';
++			goto close_fd;
++		}
++	}
+ close_fd:
+ 	close(fd);
+ }
+@@ -1647,8 +1666,10 @@ static void fcm_process_link_msg(struct ifinfomsg *ip, int len, unsigned type)
+ 		/* try to find the real device name */
+ 		real_dev[0] = '\0';
+ 		fcm_vlan_dev_real_dev(ifname, real_dev);
+-		if (strlen(real_dev))
+-			strncpy(p->real_ifname, real_dev, IFNAMSIZ-1);
++		if (strlen(real_dev)) {
++			strncpy(p->real_ifname, real_dev, IFNAMSIZ);
++			p->real_ifname[IFNAMSIZ - 1] = '\0';
++		}
+ 		if (p->ready)
+ 			update_fcoe_port_state(p, type, operstate,
+ 					       FCP_CFG_IFNAME);
+@@ -1660,7 +1681,8 @@ static void fcm_process_link_msg(struct ifinfomsg *ip, int len, unsigned type)
+ 		if (p) {
+ 			p->ifindex = ifindex;
+ 			memcpy(p->mac, mac, ETHER_ADDR_LEN);
+-			strncpy(p->real_ifname, ifname, IFNAMSIZ-1);
++			strncpy(p->real_ifname, ifname, IFNAMSIZ);
++			p->real_ifname[IFNAMSIZ - 1] = '\0';
+ 			update_fcoe_port_state(p, type, operstate,
+ 					       FCP_REAL_IFNAME);
+ 		}
+@@ -1788,7 +1810,9 @@ static void fcm_process_ieee_msg(struct nlmsghdr *nlh)
+ 	if (rta_parent->rta_type != DCB_ATTR_IFNAME)
+ 		return;
+ 
+-	strncpy(ifname, NLA_DATA(rta_parent), sizeof(ifname));
++	strncpy(ifname, NLA_DATA(rta_parent), IFNAMSIZ);
++	ifname[IFNAMSIZ - 1] = '\0';
++
+ 	ff = fcm_netif_lookup_create(ifname);
+ 	if (!ff) {
+ 		FCM_LOG("Processing IEEE message: %s not found or created\n",
+@@ -3699,6 +3723,8 @@ int main(int argc, char **argv)
+ 	memset(&fcoe_config, 0, sizeof(fcoe_config));
+ 
+ 	strncpy(progname, basename(argv[0]), sizeof(progname));
++	progname[sizeof(progname) - 1] = '\0';
++
+ 	sa_log_prefix = progname;
+ 	sa_log_flags = 0;
+ 	openlog(sa_log_prefix, LOG_CONS, LOG_DAEMON);
+diff --git a/fipvlan.c b/fipvlan.c
+index 2e9a8f2b047..c8a07339314 100644
+--- a/fipvlan.c
++++ b/fipvlan.c
+@@ -449,6 +449,7 @@ static void rtnl_recv_newlink(struct nlmsghdr *nh)
+ 		iff->iflink = iff->ifindex;
+ 	memcpy(iff->mac_addr, RTA_DATA(ifla[IFLA_ADDRESS]), ETHER_ADDR_LEN);
+ 	strncpy(iff->ifname, RTA_DATA(ifla[IFLA_IFNAME]), IFNAMSIZ);
++	iff->ifname[IFNAMSIZ - 1] = '\0';
+ 
+ 	if (ifla[IFLA_LINKINFO]) {
+ 		parse_linkinfo(linkinfo, ifla[IFLA_LINKINFO]);
+@@ -541,8 +542,10 @@ static void parse_cmdline(int argc, char **argv)
+ 			config.start = true;
+ 			break;
+ 		case 'f':
+-			if (optarg && strlen(optarg))
++			if (optarg && strlen(optarg)) {
+ 				strncpy(config.suffix, optarg, 256);
++				config.suffix[256 - 1] = '\0';
++			}
+ 			break;
+ 		case 'l':
+ 			config.link_retry = strtoul(optarg, NULL, 10);
+diff --git a/lib/fcoe_utils.c b/lib/fcoe_utils.c
+index 516eac5247d..4d13dd7ecf9 100644
+--- a/lib/fcoe_utils.c
++++ b/lib/fcoe_utils.c
+@@ -68,9 +68,10 @@ static int fcoe_check_fchost(const char *ifname, const char *dname)
+ 
+ enum fcoe_status fcoe_find_fchost(const char *ifname, char *fchost, int len)
+ {
+-	int n, dname_len, status;
++	int n, status;
+ 	struct dirent **namelist;
+ 	int rc = ENOFCOECONN;
++	int rrc;
+ 
+ 	status = n = scandir(SYSFS_FCHOST, &namelist, 0, alphasort);
+ 
+@@ -78,19 +79,17 @@ enum fcoe_status fcoe_find_fchost(const char *ifname, char *fchost, int len)
+ 		if (rc) {
+ 			/* check symbolic name */
+ 			if (!fcoe_check_fchost(ifname, namelist[n]->d_name)) {
+-				dname_len = strnlen(namelist[n]->d_name, len);
+-
+-				if (len > dname_len) {
+-					strncpy(fchost, namelist[n]->d_name,
+-						dname_len + 1);
+-					/* rc = 0 indicates found */
+-					rc = SUCCESS;
+-				} else {
++				rrc = snprintf(fchost, len, "%s", namelist[n]->d_name);
++				if (rrc < 0 || rrc >= len) {
++					fchost[0] = '\0';
+ 					/*
+ 					 * The fc_host is too large
+ 					 * for the buffer.
+ 					 */
+ 					rc = EINTERR;
++				} else {
++					/* rc = 0 indicates found */
++					rc = SUCCESS;
+ 				}
+ 			}
+ 		}
+diff --git a/lib/sysfs_hba.c b/lib/sysfs_hba.c
+index ce781e2e0ed..a8d557e92b5 100644
+--- a/lib/sysfs_hba.c
++++ b/lib/sysfs_hba.c
+@@ -215,6 +215,7 @@ static void get_pci_device_info(struct pci_device *dev, struct hba_info *info)
+ 		vname = unknown;
+ 
+ 	strncpy(info->manufacturer, vname, sizeof(info->manufacturer));
++	info->manufacturer[sizeof(info->manufacturer) - 1] = '\0';
+ 
+ 	dname = pci_device_get_device_name(dev);
+ 	if (!dname)
+@@ -222,6 +223,7 @@ static void get_pci_device_info(struct pci_device *dev, struct hba_info *info)
+ 
+ 	strncpy(info->model_description, dname,
+ 		sizeof(info->model_description));
++	info->model_description[sizeof(info->model_description) - 1] = '\0';
+ 
+ 	pci_device_cfg_read_u8(dev, &revision, PCI_REVISION_ID);
+ 	snprintf(info->hardware_version, sizeof(info->hardware_version),
+@@ -259,6 +261,7 @@ static void get_module_info(const char *pcidev, struct hba_info *info)
+ 		strncpy(info->driver_name,
+ 			strstr(buf, "module") + strlen("module") + 1,
+ 			sizeof(info->driver_name));
++	info->driver_name[sizeof(info->driver_name) - 1] = '\0';
+ 
+ }
+ 
+@@ -316,6 +319,8 @@ struct port_attributes *get_rport_attribs(const char *rport)
+ 		goto free_path;
+ 
+ 	strncpy(pa->device_name, rport, sizeof(pa->device_name));
++	pa->device_name[sizeof(pa->device_name) - 1] = '\0';
++
+ 	sa_sys_read_line(path, "node_name", pa->node_name,
+ 			 sizeof(pa->node_name));
+ 	sa_sys_read_line(path, "port_name", pa->port_name,
+@@ -391,6 +396,7 @@ struct port_attributes *get_port_attribs(const char *host)
+ 		goto free_path;
+ 
+ 	strncpy(pa->device_name, host, sizeof(pa->device_name));
++	pa->device_name[sizeof(pa->device_name) - 1] = '\0';
+ 
+ 	sa_sys_read_line(path, "symbolic_name", pa->symbolic_name,
+ 			 sizeof(pa->symbolic_name));
+diff --git a/libopenfcoe.c b/libopenfcoe.c
+index c3fd1b031f8..452ee803e63 100644
+--- a/libopenfcoe.c
++++ b/libopenfcoe.c
+@@ -207,7 +207,9 @@ static int read_fcoe_ctlr_device(struct dirent *dp, void *arg)
+ 	if (!rc)
+ 		goto fail;
+ 
+-	sprintf(hpath, "%s/%s/", SYSFS_FCHOST, fchost);
++	rc = snprintf(hpath, MAX_STR_LEN, "%s/%s/", SYSFS_FCHOST, fchost);
++	if (rc < 0 || rc >= MAX_STR_LEN)
++		goto fail;
+ 
+ 	rc = sa_sys_read_line(hpath, "symbolic_name", buf, sizeof(buf));
+ 
