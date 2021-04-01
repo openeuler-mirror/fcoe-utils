@@ -1,6 +1,6 @@
 Name:               fcoe-utils
-Version:            1.0.32
-Release:            9
+Version:            1.0.33
+Release:            1
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://github.com/morbidrsa/fcoe-utils
@@ -8,10 +8,12 @@ Source0:            https://github.com/morbidrsa/fcoe-utils/archive/v%{version}.
 Source1:            quickstart.txt
 Source2:            fcoe.service
 Source3:            fcoe.config
-Patch0:             fcoe-utils-gcc7-fmt-truc-err.patch
-Patch1:             fcoe-utils-gcc8-fmt-truc-err.patch
+Patch0:             backport-00-Revert_Make_gcc_compiler_happy_about_ifname_string.patch 
+Patch1:             backport-01-fix_VLAN_device_name_overflow_check.patch 
+Patch2:             backport-02-string_op_truncation_format_trauncation.patch     
+Patch3:             backport-03-use-of-uninitialized-values-detected-during-LTO.patch
 #This patch refer to ubuntu's version
-Patch2:             fcoe-utils-fix-gcc9-build-error.patch
+
 
 BuildRequires:      autoconf automake libpciaccess-devel libtool lldpad-devel systemd
 Requires:           lldpad iproute device-mapper-multipath
@@ -62,7 +64,7 @@ rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 %config(noreplace) %{_sysconfdir}/sysconfig/fcoe
 %{_unitdir}/fcoe.service
 %{_sbindir}/*
-%{_sysconfdir}/bash_completion.d/*
+%{_datadir}/bash-completion/completions/*
 %{_libexecdir}/fcoe/
 
 %files help
@@ -71,6 +73,12 @@ rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 %{_mandir}/man8/*
 
 %changelog
+* Tue Mar 30 2021 lijingyuan <lijingyuan@huawei.com> - 1.0.33-1
+- Type:requirement
+- Id:NA
+- SUG:NA
+- DESC:update fcoe-utils-1.0.32 to fcoe-utils-1.0.33
+
 * Tue Dec 15 2020 xihaochen <xihaochen@huawei.com> - 1.0.32-9
 - Type:requirement
 - Id:NA
