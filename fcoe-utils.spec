@@ -1,13 +1,11 @@
 Name:               fcoe-utils
 Version:            1.0.33
-Release:            1
+Release:            2
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://github.com/morbidrsa/fcoe-utils
 Source0:            https://github.com/morbidrsa/fcoe-utils/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 Source1:            quickstart.txt
-Source2:            fcoe.service
-Source3:            fcoe.config
 Patch0:             backport-00-Revert_Make_gcc_compiler_happy_about_ifname_string.patch 
 Patch1:             backport-01-fix_VLAN_device_name_overflow_check.patch 
 Patch2:             backport-02-string_op_truncation_format_trauncation.patch     
@@ -38,15 +36,10 @@ cp -v %{SOURCE1} quickstart.txt
 %install
 %make_install
 rm -rf %{buildroot}/etc/init.d
-install -d %{buildroot}%{_sysconfdir}/sysconfig %{buildroot}%{_unitdir}
-rm -f %{buildroot}%{_unitdir}/*
-install -m 644 %{SOURCE2} %{buildroot}%{_unitdir}
-install -m 644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/fcoe
 install -d %{buildroot}%{_libexecdir}/fcoe
 for file in contrib/*.sh debug/*sh
     do install -m 755 ${file} %{buildroot}%{_libexecdir}/fcoe/
 done
-rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 
 %post
 %systemd_post fcoe.service
@@ -61,8 +54,9 @@ rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 %defattr(-,root,root)
 %doc COPYING
 %config(noreplace) %{_sysconfdir}/fcoe/cfg-ethx
-%config(noreplace) %{_sysconfdir}/sysconfig/fcoe
+%config(noreplace) %{_sysconfdir}/fcoe/config
 %{_unitdir}/fcoe.service
+%{_unitdir}/fcoemon.socket
 %{_sbindir}/*
 %{_datadir}/bash-completion/completions/*
 %{_libexecdir}/fcoe/
@@ -73,6 +67,9 @@ rm -f %{buildroot}/%{_sysconfdir}/fcoe/config
 %{_mandir}/man8/*
 
 %changelog
+* Wed Aug 2021 sunguoshuai <sunguoshuai@huawei.com> - 1.0.33-2
+- Fix fcoe.service start error
+
 * Tue Mar 30 2021 lijingyuan <lijingyuan@huawei.com> - 1.0.33-1
 - Type:requirement
 - Id:NA
