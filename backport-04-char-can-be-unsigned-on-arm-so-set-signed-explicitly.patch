@@ -1,0 +1,26 @@
+From 7f4c8df2adb258d61be3df7cee24afef2901629d Mon Sep 17 00:00:00 2001
+From: Guillaume Gardet <guillaume.gardet@arm.com>
+Date: Thu, 20 Aug 2020 09:55:47 +0000
+Subject: [PATCH 1/1] char can be unsigned on arm, so set signed explicitly as
+ the check expects it can be negative
+
+---
+ fcnsq.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fcnsq.c b/fcnsq.c
+index 1597cd5f760..c59c42802aa 100644
+--- a/fcnsq.c
++++ b/fcnsq.c
+@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
+ 	u64 wwnn = 0;
+ 	int rc = 0;
+ 	enum commands cmd = 0;
+-	char c;
++	signed char c;
+ 	uintmax_t wwnn_tmp = 0;
+ 
+ 	while(1) {
+-- 
+2.32.0
+
