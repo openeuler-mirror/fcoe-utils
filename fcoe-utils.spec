@@ -1,6 +1,6 @@
 Name:               fcoe-utils
 Version:            1.0.33
-Release:            2
+Release:            3
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://github.com/morbidrsa/fcoe-utils
@@ -11,7 +11,7 @@ Patch1:             backport-01-fix_VLAN_device_name_overflow_check.patch
 Patch2:             backport-02-string_op_truncation_format_trauncation.patch     
 Patch3:             backport-03-use-of-uninitialized-values-detected-during-LTO.patch
 #This patch refer to ubuntu's version
-
+Patch4:             backport-Fix-build-error-to-change-char-type.patch
 
 BuildRequires:      autoconf automake libpciaccess-devel libtool lldpad-devel systemd
 Requires:           lldpad iproute device-mapper-multipath
@@ -67,6 +67,9 @@ done
 %{_mandir}/man8/*
 
 %changelog
+* Wed Mar 03 2022 xu_ping <xuping33@huawei.com> - 1.0.33-3
+- Backport upstream patch to avoid non-X86 build break.
+
 * Wed Aug 2021 sunguoshuai <sunguoshuai@huawei.com> - 1.0.33-2
 - Fix fcoe.service start error
 
