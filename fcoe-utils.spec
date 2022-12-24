@@ -70,7 +70,7 @@ done
 * Wed Mar 03 2022 xu_ping <xuping33@huawei.com> - 1.0.33-3
 - Backport upstream patch to avoid non-X86 build break.
 
-* Wed Aug 2021 sunguoshuai <sunguoshuai@huawei.com> - 1.0.33-2
+* Wed Aug 25 2021 sunguoshuai <sunguoshuai@huawei.com> - 1.0.33-2
 - Fix fcoe.service start error
 
 * Tue Mar 30 2021 lijingyuan <lijingyuan@huawei.com> - 1.0.33-1
