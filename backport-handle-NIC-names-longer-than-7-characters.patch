@@ -1,0 +1,33 @@
+From 74359e5a9965ed26e0b42d890bf802103da6c97f Mon Sep 17 00:00:00 2001
+From: xulei <xulei@xfusion.com>
+Date: Thu, 29 Dec 2022 20:07:41 +0800
+Subject: [PATCH] handle NIC names longer than 7 characters
+
+---
+ fcoeadm_display.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fcoeadm_display.c b/fcoeadm_display.c
+index cc8f4fe..585ecfa 100644
+--- a/fcoeadm_display.c
++++ b/fcoeadm_display.c
+@@ -476,7 +476,7 @@ static void scan_device_map(char *rport, enum disp_style style)
+ static void show_port_stats_header(const char *ifname, int interval)
+ {
+ 	printf("\n");
+-	printf("%-7s interval: %-2d                                    Err  Inv  "
++	printf("%-15s interval: %-2d                            Err  Inv  "
+ 	       "IvTx Link Cntl Input     Input     Output    Output\n",
+ 	       ifname, interval);
+ 	printf("Seconds TxFrames  TxBytes      RxFrames  RxBytes        "
+@@ -921,7 +921,7 @@ static void
+ print_interface_fcoe_lesb_stats_header(const char *ifname, int interval)
+ {
+ 	printf("\n");
+-	printf("%-7s interval: %-2d\n", ifname, interval);
++	printf("%-15s interval: %-2d\n", ifname, interval);  
+ 	printf("LinkFail VLinkFail MissFKA SymbErr ErrBlkCnt FCSErrCnt\n");
+ 	printf("-------- --------- ------- ------- --------- ---------\n");
+ }
+-- 
+2.33.0
