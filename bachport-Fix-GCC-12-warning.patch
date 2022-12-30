@@ -1,0 +1,25 @@
+From 33be0ef3579da7a451df4b945d6b150bea2d4429 Mon Sep 17 00:00:00 2001
+From: xu_lei_123 <xulei@xfusion.com>
+Date: Fri, 30 Dec 2022 11:10:26 +0800
+Subject: [PATCH] Fix GCC 12 warning
+
+---
+ fcoeadm_display.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fcoeadm_display.c b/fcoeadm_display.c
+index cc8f4fe..ab75172 100644
+--- a/fcoeadm_display.c
++++ b/fcoeadm_display.c
+@@ -246,7 +246,7 @@ static void show_full_lun_info(unsigned int hba, unsigned int port,
+ 	char vendor[256];
+ 	char model[256];
+ 	char rev[256];
+-	char *osname;
++	char *osname = NULL;
+ 	char *capstr;
+ 	uint64_t lba = 0;
+ 	uint32_t blksize = 0;
+-- 
+2.21.0
+
