@@ -1,6 +1,6 @@
 Name:               fcoe-utils
 Version:            1.0.33
-Release:            4
+Release:            5
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://github.com/morbidrsa/fcoe-utils
@@ -13,6 +13,8 @@ Patch3:             backport-03-use-of-uninitialized-values-detected-during-LTO.
 #This patch refer to ubuntu's version
 Patch4:             backport-Fix-build-error-to-change-char-type.patch
 Patch5:             backport-handle-NIC-names-longer-than-7-characters.patch           
+Patch6:             bachport-Fix-GCC-12-warning.patch
+
 BuildRequires:      autoconf automake libpciaccess-devel libtool lldpad-devel systemd
 Requires:           lldpad iproute device-mapper-multipath
 %{?systemd_requires}
@@ -67,6 +69,9 @@ done
 %{_mandir}/man8/*
 
 %changelog
+* Fri Dec 30 2022 xulei <xulei@xfusion.com> - 1.0.33-5
+- Backport upstream patch to fix GCC 12 warning.
+
 * Thu Dec 29 2022 xulei <xulei@xfusion.com> - 1.0.33-4
 - Backport upstream patch to handle NIC names lognger than 7 characters
 
