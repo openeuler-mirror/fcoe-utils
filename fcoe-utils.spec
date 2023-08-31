@@ -1,6 +1,6 @@
 Name:               fcoe-utils
 Version:            1.0.33
-Release:            4
+Release:            5
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://github.com/morbidrsa/fcoe-utils
@@ -32,6 +32,10 @@ fcoemon - service to configure DCB Ethernet QOS filters, works with lldpad
 cp -v %{SOURCE1} quickstart.txt
 
 %build
+%if "%toolchain" == "clang"
+    CFLAGS="$CFLAGS -Wno-error=format-nonliteral -Wno-error=strncat-size -Wno-error=strict-prototypes"
+%endif
+
 ./bootstrap.sh
 %configure
 %make_build
@@ -70,6 +74,9 @@ done
 %{_mandir}/man8/*
 
 %changelog
+* Thu Aug 24 2023 Xiaoya Huang <huangxiaoya@iscas.ac.cn> - 1.0.33-5
+- Fix clang build error
+
 * Fri Jul 14 2023 chenchen <chen_aka_jan@163.com> - 1.0.33-4
 - fix build error caused by upgrading gcc to 12.3.0 
 
