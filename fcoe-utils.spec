@@ -1,20 +1,14 @@
 Name:               fcoe-utils
-Version:            1.0.33
-Release:            5
+Version:            1.0.34
+Release:            1
 Summary:            Fibre Channel over Ethernet utilities
 License:            GPLv2
 URL:                https://github.com/morbidrsa/fcoe-utils
-Source0:            https://github.com/morbidrsa/fcoe-utils/archive/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
+Source0:            https://github.com/openSUSE/fcoe-utils/archive/v{version}/%{name}-%{version}.tar.gz
 Source1:            quickstart.txt
-Patch0:             backport-00-Revert_Make_gcc_compiler_happy_about_ifname_string.patch 
-Patch1:             backport-01-fix_VLAN_device_name_overflow_check.patch 
-Patch2:             backport-02-string_op_truncation_format_trauncation.patch     
-Patch3:             backport-03-use-of-uninitialized-values-detected-during-LTO.patch
 #This patch refer to ubuntu's version
-Patch4:             backport-Fix-build-error-to-change-char-type.patch
-Patch5:             0001-Fix-two-gcc-11-compiler-warnings.patch
-Patch6:             0001-Fix-GCC-12-warning.patch
-Patch7:             0001-fcoemon-add-snprintf-string-precision-modifiers-in-f.patch
+Patch1:             0001-Fix-GCC-12-warning.patch
+Patch2:             0001-fcoemon-add-snprintf-string-precision-modifiers-in-f.patch
 
 BuildRequires:      autoconf automake libpciaccess-devel libtool lldpad-devel systemd
 Requires:           lldpad iproute device-mapper-multipath
@@ -74,6 +68,9 @@ done
 %{_mandir}/man8/*
 
 %changelog
+* Sat Oct 07 2023 xu_ping <707078654@qq.com> - 1.0.34-1
+- Upgrade version to 1.0.34
+
 * Thu Aug 24 2023 Xiaoya Huang <huangxiaoya@iscas.ac.cn> - 1.0.33-5
 - Fix clang build error
 
